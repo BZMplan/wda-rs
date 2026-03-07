@@ -1,4 +1,4 @@
-use crate::db::DB_POOL;
+use crate::{DB_POOL, structure::ElemGet};
 use sqlx::Executor;
 
 use crate::structure::ElemUpload;
@@ -16,8 +16,8 @@ pub async fn create_weather_table(table_name: &str) -> Result<(), sqlx::Error> {
         r#"
             CREATE TABLE IF NOT EXISTS {} (
                 id BIGSERIAL PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                station_id BIGINT NOT NULL,
+                timestamp BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM now()),
+                station_id INTEGER NOT NULL,
                 station_name TEXT,
                 station_lon DOUBLE PRECISION,
                 station_lat DOUBLE PRECISION,
@@ -28,7 +28,7 @@ pub async fn create_weather_table(table_name: &str) -> Result<(), sqlx::Error> {
                 dp DOUBLE PRECISION,
                 slp DOUBLE PRECISION,
                 ws DOUBLE PRECISION,
-                wd BIGINT
+                wd INTEGER
             )
       "#,
         table_name
@@ -72,4 +72,19 @@ pub async fn insert_weather_data_to_table(
         .await?;
 
     Ok(())
+}
+
+pub async fn query_weather_data_from_table(table_name: &str) -> Result<ElemGet, sqlx::Error> {
+    let sql = format!(
+        r#"
+        SELECT * FROM {} ORDER BY timestamp DESC LIMIT 1
+        "#,
+        table_name
+    );
+
+    let row = sqlx::query_as::<_, ElemGet>(&sql)
+        .fetch_one(&*DB_POOL)
+        .await?;
+
+    Ok(row)
 }

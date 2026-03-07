@@ -1,6 +1,7 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use round::round;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Weather {
@@ -32,7 +33,24 @@ pub struct Station {
 pub struct ElemUpload {
     pub station: Station,
     pub weather: Weather,
-    pub timestamp: Option<DateTime<Utc>>,
+    pub timestamp: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct ElemGet {
+    pub station_id: i32,
+    pub station_name: Option<String>,
+    pub station_height: Option<f64>,
+    pub station_lat: Option<f64>,
+    pub station_lon: Option<f64>,
+    pub timestamp: Option<i64>,
+    pub t: Option<f64>,
+    pub p: Option<f64>,
+    pub rh: Option<f64>,
+    pub dp: Option<f64>,
+    pub slp: Option<f64>,
+    pub ws: Option<f64>,
+    pub wd: Option<i64>,
 }
 
 impl ElemUpload {
@@ -51,7 +69,7 @@ impl ElemUpload {
             let dp = _calc_dp(_t, _rh);
             self.weather.slp = Some(slp);
             self.weather.dp = Some(dp);
-            self.timestamp = Some(Utc::now());
+            self.timestamp = Some(Utc::now().timestamp());
         }
     }
 }
