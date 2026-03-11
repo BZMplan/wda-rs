@@ -15,6 +15,15 @@ pub struct Database {
     pub db_name: String,
 }
 
+impl Database {
+    pub fn connection_url(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.user, self.password, self.host, self.port, self.db_name
+        )
+    }
+}
+
 pub fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
     let content = fs::read_to_string("config.toml")?;
     let config: Config = toml::from_str(&content)?;

@@ -1953,7 +1953,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
- "once_cell",
  "round",
  "serde",
  "serde_json",

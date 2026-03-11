@@ -1,17 +1,23 @@
-use crate::{DB_POOL, structure::ElemGet};
-use sqlx::Executor;
+use chrono::Utc;
+use sqlx::{Executor, PgPool};
 
-use crate::structure::ElemUpload;
+use crate::structure::{ElemGet, ElemUpload};
 
-pub async fn table_exist(table_name: &str) -> Result<bool, sqlx::Error> {
+fn station_table(station_id: i32) -> String {
+    format!("station_{station_id}")
+}
+
+pub async fn table_exist(pool: &PgPool, station_id: i32) -> Result<bool, sqlx::Error> {
+    let table_name = station_table(station_id);
     let exists: Option<String> = sqlx::query_scalar("SELECT to_regclass($1)::text")
         .bind(table_name)
-        .fetch_one(&*DB_POOL)
+        .fetch_one(pool)
         .await?;
     Ok(exists.is_some())
 }
 
-pub async fn create_weather_table(table_name: &str) -> Result<(), sqlx::Error> {
+pub async fn create_weather_table(pool: &PgPool, station_id: i32) -> Result<(), sqlx::Error> {
+    let table_name = station_table(station_id);
     let sql = format!(
         r#"
             CREATE TABLE IF NOT EXISTS {} (
@@ -34,15 +40,17 @@ pub async fn create_weather_table(table_name: &str) -> Result<(), sqlx::Error> {
         table_name
     );
 
-    DB_POOL.execute(sql.as_str()).await?;
+    pool.execute(sql.as_str()).await?;
 
     Ok(())
 }
 
 pub async fn insert_weather_data_to_table(
-    table_name: &str,
-    upload: ElemUpload,
+    pool: &PgPool,
+    station_id: i32,
+    upload: &ElemUpload,
 ) -> Result<(), sqlx::Error> {
+    let table_name = station_table(station_id);
     let sql = format!(
         r#"
         INSERT INTO {} (
@@ -53,11 +61,12 @@ pub async fn insert_weather_data_to_table(
         "#,
         table_name
     );
+    let timestamp = upload.timestamp.unwrap_or_else(|| Utc::now().timestamp());
 
     sqlx::query(&sql)
-        .bind(upload.timestamp)
+        .bind(timestamp)
         .bind(upload.station.station_id)
-        .bind(upload.station.station_name)
+        .bind(&upload.station.station_name)
         .bind(upload.station.station_lon)
         .bind(upload.station.station_lat)
         .bind(upload.station.station_height)
@@ -68,13 +77,17 @@ pub async fn insert_weather_data_to_table(
         .bind(upload.weather.slp)
         .bind(upload.weather.ws)
         .bind(upload.weather.wd)
-        .execute(&*DB_POOL)
+        .execute(pool)
         .await?;
 
     Ok(())
 }
 
-pub async fn query_weather_data_from_table(table_name: &str) -> Result<ElemGet, sqlx::Error> {
+pub async fn query_weather_data_from_table(
+    pool: &PgPool,
+    station_id: i32,
+) -> Result<Option<ElemGet>, sqlx::Error> {
+    let table_name = station_table(station_id);
     let sql = format!(
         r#"
         SELECT * FROM {} ORDER BY timestamp DESC LIMIT 1
@@ -83,7 +96,7 @@ pub async fn query_weather_data_from_table(table_name: &str) -> Result<ElemGet, 
     );
 
     let row = sqlx::query_as::<_, ElemGet>(&sql)
-        .fetch_one(&*DB_POOL)
+        .fetch_optional(pool)
         .await?;
 
     Ok(row)
