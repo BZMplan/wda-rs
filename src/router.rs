@@ -9,9 +9,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tracing::{error, instrument};
 
-use crate::db::{
-    create_weather_table, insert_weather_data_to_table, query_weather_data_from_table, table_exist,
-};
+use crate::db::{insert_weather_data, insert_weather_data_batch, query_latest_weather_data};
 use crate::structure::ElemUpload;
 
 #[derive(Deserialize)]
@@ -33,7 +31,7 @@ impl AppError {
         }
     }
 
-    fn bad_request(message: impl Into<String>) -> Self {
+    pub(crate) fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, message)
     }
 
@@ -80,16 +78,12 @@ pub async fn get_data_with_query(
 }
 
 #[instrument(skip(pool), fields(station_id = station_id))]
-async fn get_data(pool: &PgPool, station_id: i32) -> ApiResult {
+pub(crate) async fn get_data(pool: &PgPool, station_id: i32) -> ApiResult {
     if station_id <= 0 {
         return Err(AppError::bad_request("station_id must be positive"));
     }
 
-    if !table_exist(pool, station_id).await? {
-        return Err(AppError::not_found("station data not found"));
-    }
-
-    let data = query_weather_data_from_table(pool, station_id)
+    let data = query_latest_weather_data(pool, station_id)
         .await?
         .ok_or_else(|| AppError::not_found("station data not found"))?;
 
@@ -112,13 +106,31 @@ pub async fn upload_data(
         "weather": payload.weather
     });
 
-    let station_id = payload.station.station_id;
-    let exist = table_exist(&pool, station_id).await?;
-    if !exist {
-        create_weather_table(&pool, station_id).await?;
+    insert_weather_data(&pool, &payload).await?;
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+#[instrument(skip(pool, payloads), fields(size = payloads.len()))]
+pub async fn upload_data_batch(
+    State(pool): State<PgPool>,
+    Json(mut payloads): Json<Vec<ElemUpload>>,
+) -> ApiResult {
+    if payloads.is_empty() {
+        return Err(AppError::bad_request("payload must not be empty"));
     }
 
-    insert_weather_data_to_table(&pool, station_id, &payload).await?;
+    for payload in &mut payloads {
+        if payload.station.station_id <= 0 {
+            return Err(AppError::bad_request("station_id must be positive"));
+        }
+        payload.build();
+    }
+
+    let affected_rows = insert_weather_data_batch(&pool, &payloads).await?;
+    let response = json!({
+        "inserted": affected_rows,
+        "size": payloads.len()
+    });
     Ok((StatusCode::CREATED, Json(response)))
 }
 

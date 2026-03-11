@@ -1,6 +1,8 @@
 mod db;
 mod router;
 mod structure;
+#[cfg(test)]
+mod tests;
 mod utils;
 
 use axum::Router;
@@ -14,8 +16,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::Level;
 
+use crate::db::init_database;
 use crate::utils::load_config;
-use router::{get_data_with_path, get_data_with_query, route_not_found, upload_data};
+use router::{
+    get_data_with_path, get_data_with_query, route_not_found, upload_data, upload_data_batch,
+};
 use sqlx::postgres::PgPoolOptions;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing_subscriber::fmt::MakeWriter;
@@ -166,10 +171,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .max_connections(20)
         .connect(&database_url)
         .await?;
+    init_database(&pool).await?;
 
     // build our application with a single route
     let app = Router::new()
         .route("/upload", post(upload_data))
+        .route("/upload/batch", post(upload_data_batch))
         .route("/get", get(get_data_with_query))
         .route("/get/{station_id}", get(get_data_with_path))
         .layer(
