@@ -7,6 +7,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use tracing::{error, instrument};
 
 use crate::db::{
     create_weather_table, insert_weather_data_to_table, query_weather_data_from_table, table_exist,
@@ -47,7 +48,8 @@ impl AppError {
 
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
-        Self::internal(format!("database error: {err}"))
+        error!(error = %err, "database operation failed");
+        Self::internal("database operation failed")
     }
 }
 
@@ -77,6 +79,7 @@ pub async fn get_data_with_query(
     get_data(&pool, params.station_id).await
 }
 
+#[instrument(skip(pool), fields(station_id = station_id))]
 async fn get_data(pool: &PgPool, station_id: i32) -> ApiResult {
     if station_id <= 0 {
         return Err(AppError::bad_request("station_id must be positive"));
@@ -93,6 +96,7 @@ async fn get_data(pool: &PgPool, station_id: i32) -> ApiResult {
     Ok((StatusCode::OK, Json(json!(data))))
 }
 
+#[instrument(skip(pool, payload), fields(station_id = payload.station.station_id))]
 pub async fn upload_data(
     State(pool): State<PgPool>,
     Json(mut payload): Json<ElemUpload>,
