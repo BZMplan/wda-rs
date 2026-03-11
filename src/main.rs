@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::utils::load_config;
 use once_cell::sync::Lazy;
-use router::{get_data_path, get_data_query, route_not_found, upload_data};
+use router::{get_data_with_path, get_data_with_query, route_not_found, upload_data};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tower_http::trace::TraceLayer;
@@ -45,8 +45,8 @@ async fn main() {
     // build our application with a single route
     let app = Router::new()
         .route("/upload", post(upload_data))
-        .route("/get", get(get_data_query))
-        .route("/get/{station_id}", get(get_data_path))
+        .route("/get", get(get_data_with_query))
+        .route("/get/{station_id}", get(get_data_with_path))
         .layer(TraceLayer::new_for_http().on_request(
             |req: &axum::http::Request<_>, _span: &tracing::Span| {
                 info!("{} {}", req.method(), req.uri());

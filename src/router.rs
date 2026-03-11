@@ -17,7 +17,7 @@ pub struct GetParams {
     station_id: i32,
 }
 
-pub async fn get_data_path(Path(params): Path<GetParams>) -> (StatusCode, Json<Value>) {
+pub async fn get_data_with_path(Path(params): Path<GetParams>) -> (StatusCode, Json<Value>) {
     let table_name = format!("station_{}", params.station_id);
     let data = query_weather_data_from_table(&table_name).await.unwrap();
 
@@ -26,7 +26,7 @@ pub async fn get_data_path(Path(params): Path<GetParams>) -> (StatusCode, Json<V
     (StatusCode::OK, Json(response))
 }
 
-pub async fn get_data_query(Query(params): Query<GetParams>) -> (StatusCode, Json<Value>) {
+pub async fn get_data_with_query(Query(params): Query<GetParams>) -> (StatusCode, Json<Value>) {
     let table_name = format!("station_{}", params.station_id);
 
     let data = query_weather_data_from_table(&table_name).await.unwrap();
